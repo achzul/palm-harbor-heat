@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Palm Harbor Heat — an open-world crime game</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1a1410; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #fff; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .hud { position: fixed; z-index: 5; pointer-events: none; text-shadow: 0 1px 3px rgba(0,0,0,.65); }
+  #wallet { top: 14px; left: 16px; }
+  #cash { font-size: 30px; font-weight: 800; color: #7be495; letter-spacing: .5px; }
+  #health-track { width: 168px; height: 10px; background: rgba(0,0,0,.45); border-radius: 5px; margin-top: 5px; overflow: hidden; }
+  #health-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #e2483d, #7be495); transition: width .25s; }
+  #stars { top: 12px; right: 216px; font-size: 27px; letter-spacing: 3px; color: #ffc21f; }
+  #minimap { position: fixed; top: 14px; right: 16px; width: 184px; height: 184px; z-index: 5; border: 2px solid rgba(255,255,255,.35); border-radius: 10px; background: #131c26; }
+  #objective { top: 14px; left: 50%; transform: translateX(-50%); max-width: 520px; text-align: center; background: rgba(12,14,18,.55); padding: 8px 18px 9px; border-radius: 10px; display: none; }
+  #objective-title { font-size: 12px; font-weight: 700; letter-spacing: 2.5px; color: #ffc21f; text-transform: uppercase; }
+  #objective-text { font-size: 16.5px; font-weight: 600; margin-top: 1px; }
+  #prompt { bottom: 108px; left: 50%; transform: translateX(-50%); font-size: 17px; font-weight: 700; background: rgba(12,14,18,.55); padding: 6px 14px; border-radius: 8px; }
+  #prompt:empty { display: none; }
+  #speedo { bottom: 22px; right: 22px; font-size: 30px; font-weight: 800; display: none; }
+  #speedo small { font-size: 14px; font-weight: 600; opacity: .8; }
+  #crosshair { top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 22px; opacity: .85; display: none; }
+  #busted-wrap { bottom: 150px; left: 50%; transform: translateX(-50%); width: 240px; text-align: center; display: none; }
+  #busted-wrap .label { font-weight: 800; letter-spacing: 3px; color: #ff5a3c; font-size: 14px; margin-bottom: 4px; }
+  #busted-track { height: 9px; background: rgba(0,0,0,.5); border-radius: 5px; overflow: hidden; }
+  #busted-fill { height: 100%; width: 0%; background: #ff5a3c; }
+  #toasts { bottom: 22px; left: 16px; max-width: 430px; }
+  .toast { background: rgba(12,14,18,.72); border-left: 4px solid #ffc21f; padding: 9px 13px; border-radius: 6px; margin-top: 8px; font-size: 15px; line-height: 1.35; transition: opacity .6s; }
+  .toast.fade { opacity: 0; }
+  .screen { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: radial-gradient(ellipse at 50% 65%, rgba(26,16,8,.25), rgba(10,8,14,.78)); padding: 20px; }
+  .screen h1 { font-size: 64px; margin: 0; letter-spacing: 3px; font-weight: 900; color: #fff; text-shadow: 0 4px 0 #c2541f, 0 8px 28px rgba(0,0,0,.6); }
+  .screen h1 .heat { color: #ffc21f; }
+  .screen h2 { font-size: 40px; margin: 0 0 8px; letter-spacing: 4px; }
+  .screen p { max-width: 560px; font-size: 16.5px; line-height: 1.5; color: #f3e9d8; }
+  .screen .controls { font-size: 14px; color: #cfd6dd; line-height: 1.9; }
+  .screen button { pointer-events: auto; margin-top: 18px; font-size: 19px; font-weight: 800; letter-spacing: 1px; padding: 13px 42px; border: 0; border-radius: 10px; background: #ffc21f; color: #23180a; cursor: pointer; box-shadow: 0 6px 22px rgba(0,0,0,.45); }
+  .screen button:hover { background: #ffd34d; }
+  #pause-screen, #over-screen { display: none; }
+  #over-title { color: #ff5a3c; }
+  #continue-note { font-size: 13.5px; color: #9fd8a8; min-height: 18px; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div class="hud" id="wallet">
+  <div id="cash">$0</div>
+  <div id="health-track"><div id="health-fill"></div></div>
+</div>
+<div class="hud" id="stars">☆☆☆☆☆</div>
+<canvas id="minimap" width="184" height="184"></canvas>
+<div class="hud" id="objective">
+  <div id="objective-title"></div>
+  <div id="objective-text"></div>
+</div>
+<div class="hud" id="prompt"></div>
+<div class="hud" id="speedo">0 <small>km/h</small></div>
+<div class="hud" id="crosshair">+</div>
+<div class="hud" id="busted-wrap">
+  <div class="label">BUSTED</div>
+  <div id="busted-track"><div id="busted-fill"></div></div>
+</div>
+<div class="hud" id="toasts"></div>
+
+<div class="screen" id="start-screen">
+  <h1>PALM HARBOR <span class="heat">HEAT</span></h1>
+  <p>You are Nico Vega, a driver in a golden-hour coastal city. Run jobs for
+  Marisol "Sol" Duarte of Harborlight Garage — deliveries, a stolen Cielo GT, one
+  very loud getaway — and stay ahead of the Palm Harbor PD.</p>
+  <div class="controls">
+    WASD walk &amp; drive &nbsp;·&nbsp; Shift sprint &nbsp;·&nbsp; E enter car / talk &nbsp;·&nbsp; Mouse aim, click fire<br>
+    Space handbrake &nbsp;·&nbsp; P pause &nbsp;·&nbsp; M mute &nbsp;·&nbsp; The beach range pays $15 a bullseye
+  </div>
+  <button id="start-button">START DRIVING</button>
+  <p id="continue-note"></p>
+</div>
+
+<div class="screen" id="pause-screen">
+  <h2>PAUSED</h2>
+  <p>Palm Harbor waits. Your progress is saved.</p>
+  <button id="resume-button">RESUME</button>
+</div>
+
+<div class="screen" id="over-screen">
+  <h2 id="over-title">BUSTED</h2>
+  <p id="over-text"></p>
+</div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
